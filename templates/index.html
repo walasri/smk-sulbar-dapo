@@ -18,6 +18,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f7fa;color:#33
 .controls select,.controls input{padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px}
 .controls input{flex:1;min-width:180px}
 .controls select{min-width:140px}
+select#fJurusan{min-width:200px;max-width:300px}
 .btn{padding:8px 16px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;white-space:nowrap}
 .btn:hover{background:#1557b0}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -47,10 +48,7 @@ tr:hover{background:#e8f0fe}
 .modal table{font-size:12px}
 .modal td,.modal th{padding:6px 8px}
 .empty{text-align:center;padding:40px;color:#aaa}
-.refresh-bar{max-width:960px;margin:8px auto;padding:0 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.refresh-status{font-size:13px;color:#555;flex:1;min-width:200px}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ccc;border-top-color:#1a73e8;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px}
-@keyframes spin{to{transform:rotate(360deg)}}
+
 @media(max-width:600px){.stats{flex-direction:column}.controls{flex-direction:column}table{font-size:12px}th,td{padding:6px 8px}}
 </style>
 </head>
@@ -75,16 +73,12 @@ tr:hover{background:#e8f0fe}
 <option value="A">A</option><option value="B">B</option>
 <option value="C">C</option><option value="D">D</option>
 </select>
+<select id="fJurusan"><option value="">Semua Jurusan</option></select>
 <input type="text" id="fQ" placeholder="🔍 Cari nama sekolah...">
 <button class="btn" onclick="loadData()">Filter</button>
 <button class="btn btn-green" onclick="exportExcel()">📥 Export Excel</button>
 </div>
 
-<div class="refresh-bar">
-<button class="btn btn-sm btn-orange" id="btnRefresh" onclick="startRefresh('ringan')">🔄 Refresh Data</button>
-<button class="btn btn-sm btn-orange" id="btnRefreshFull" onclick="startRefresh('lengkap')">🔄 Refresh Lengkap (+Jurusan+MOU)</button>
-<span class="refresh-status" id="refreshStatus"></span>
-</div>
 
 <div class="count" id="count"></div>
 <div class="table-wrap">
@@ -108,7 +102,6 @@ tr:hover{background:#e8f0fe}
 <script>
 const $ = s => document.querySelector(s);
 let allData = [];
-let refreshTimer = null;
 
 // ── Load meta ──
 fetch('/api/meta').then(r=>r.json()).then(m=>{
@@ -117,6 +110,12 @@ m.kabupaten_list.forEach(k=>{
 const o = document.createElement('option');
 o.value=k; o.textContent=k;
 sel.appendChild(o);
+});
+const jSel = $('#fJurusan');
+m.jurusan_list.forEach(j=>{
+const o = document.createElement('option');
+o.value=j; o.textContent=j;
+jSel.appendChild(o);
 });
 $('#stats').innerHTML = `
 <div class="stat-card"><div class="num">${m.total_sekolah}</div><div class="lbl">Total SMK</div></div>
@@ -129,11 +128,12 @@ if(m.last_refresh) $('#refreshStatus').textContent = 'Terakhir: '+m.last_refresh
 // ── Load data ──
 function loadData(){
 const kab=$('#fKab').value, st=$('#fStatus').value;
-const ak=$('#fAkreditasi').value, q=$('#fQ').value;
+const ak=$('#fAkreditasi').value, jur=$('#fJurusan').value, q=$('#fQ').value;
 let url='/api/sekolah?';
 if(kab)url+=`kab_kota=${encodeURIComponent(kab)}&`;
 if(st)url+=`status=${encodeURIComponent(st)}&`;
 if(ak)url+=`akreditasi=${encodeURIComponent(ak)}&`;
+if(jur)url+=`jurusan=${encodeURIComponent(jur)}&`;
 if(q)url+=`q=${encodeURIComponent(q)}&`;
 fetch(url).then(r=>r.json()).then(res=>{
 allData=res.data;
@@ -153,7 +153,7 @@ return `<tr onclick="showDetail('${r.npsn}')">
 <td>${esc(r.kab_kota)}</td>
 <td>${esc(r.status)}</td>
 <td><span class="badge ${bc}">${esc(r.akreditasi||'-')}</span></td>
-<td>${Number(r.jml_siswa||0).toLocaleString()}</td>
+<td>${Number(r.total_siswa||0).toLocaleString()}</td>
 <td class="jurusan-cell">${r.jurusan ? esc(r.jurusan.split(' | ').slice(0,3).join(', ')) + (r.jurusan.split(' | ').length > 3 ? ` <span style="color:#999">+${r.jurusan.split(' | ').length - 3}</span>` : '') : (r.jml_jurusan||'-')}</td>
 </tr>`;
 }).join('');
@@ -169,7 +169,7 @@ h+=`<b>NPSN:</b> ${esc(s.npsn)}<br>`;
 h+=`<b>Alamat:</b> ${esc(s.alamat_jalan||'-')}<br>`;
 h+=`<b>Kabupaten:</b> ${esc(s.kab_kota)}<br>`;
 h+=`<b>Status:</b> ${esc(s.status)} &bull; <b>Akreditasi:</b> ${esc(s.akreditasi||'-')}<br>`;
-h+=`<b>Siswa:</b> ${Number(s.jml_siswa||0).toLocaleString()} &bull; `;
+h+=`<b>Siswa:</b> ${Number(s.total_siswa||0).toLocaleString()} &bull; `;
 h+=`<b>Rombel:</b> ${s.total_rombel||'-'} &bull; `;
 h+=`<b>Jurusan:</b> ${s.jml_jurusan||'-'}`;
 if(s.lintang&&s.bujur) h+=`<br><b>Lokasi:</b> ${s.lintang}, ${s.bujur}`;
@@ -203,10 +203,10 @@ allData.forEach(r=>{
 const jurusanList=r.jurusan?r.jurusan.split(' | ').map(j=>j.trim()).filter(Boolean):[];
 if(jurusanList.length){
 jurusanList.forEach(j=>{
-rows.push({'NPSN':r.npsn||'','Nama Sekolah':r.nama||'','Kabupaten':r.kab_kota||'','Status':r.status||'','Akreditasi':r.akreditasi||'','Siswa':Number(r.jml_siswa||0),'Rombel':Number(r.total_rombel||0),'Jurusan':j,'Alamat':r.alamat_jalan||''});
+rows.push({'NPSN':r.npsn||'','Nama Sekolah':r.nama||'','Kabupaten':r.kab_kota||'','Status':r.status||'','Akreditasi':r.akreditasi||'','Siswa':Number(r.total_siswa||0),'Rombel':Number(r.total_rombel||0),'Jurusan':j,'Alamat':r.alamat_jalan||''});
 });
 }else{
-rows.push({'NPSN':r.npsn||'','Nama Sekolah':r.nama||'','Kabupaten':r.kab_kota||'','Status':r.status||'','Akreditasi':r.akreditasi||'','Siswa':Number(r.jml_siswa||0),'Rombel':Number(r.total_rombel||0),'Jurusan':r.jml_jurusan||'-','Alamat':r.alamat_jalan||''});
+rows.push({'NPSN':r.npsn||'','Nama Sekolah':r.nama||'','Kabupaten':r.kab_kota||'','Status':r.status||'','Akreditasi':r.akreditasi||'','Siswa':Number(r.total_siswa||0),'Rombel':Number(r.total_rombel||0),'Jurusan':r.jml_jurusan||'-','Alamat':r.alamat_jalan||''});
 }
 });
 const ws=XLSX.utils.json_to_sheet(rows);
@@ -217,54 +217,6 @@ const fname='SMK_Sulbar_'+kab.replace(/[^a-zA-Z0-9]/g,'_')+'.xlsx';
 XLSX.writeFile(wb,fname);
 }
 
-// ── Refresh Data ──
-function startRefresh(mode){
-const label = mode==='lengkap' ? 'Refresh Lengkap' : 'Refresh';
-if(!confirm(`Jalankan ${label}? Proses ini butuh waktu beberapa menit.`)) return;
-
-const btn = mode==='lengkap' ? $('#btnRefreshFull') : $('#btnRefresh');
-btn.disabled = true;
-btn.textContent = '⏳ Scraping...';
-$('#refreshStatus').innerHTML = '<span class="spinner"></span> Memulai scraping...';
-
-fetch(`/api/refresh?mode=${mode}`, {method:'POST'})
-.then(r=>r.json())
-.then(res=>{
-if(res.ok){
-pollRefresh();
-}else{
-$('#refreshStatus').textContent = '❌ '+res.error;
-btn.disabled = false;
-btn.textContent = mode==='lengkap' ? '🔄 Refresh Lengkap' : '🔄 Refresh Data';
-}
-});
-}
-
-function pollRefresh(){
-if(refreshTimer) clearTimeout(refreshTimer);
-fetch('/api/refresh/status').then(r=>r.json()).then(st=>{
-if(st.running){
-$('#refreshStatus').innerHTML = `<span class="spinner"></span> [${st.mode}] ${esc(st.progress)}`;
-refreshTimer = setTimeout(pollRefresh, 2000);
-}else if(st.done){
-if(st.success){
-$('#refreshStatus').textContent = '✅ Selesai! Memuat ulang data...';
-loadData();
-setTimeout(()=>{ $('#refreshStatus').textContent = '✅ Data diperbarui ('+st.finished_at+')'; }, 1000);
-}else{
-$('#refreshStatus').textContent = '❌ Gagal: '+st.error;
-}
-$('#btnRefresh').disabled = false;
-$('#btnRefresh').textContent = '🔄 Refresh Data';
-$('#btnRefreshFull').disabled = false;
-$('#btnRefreshFull').textContent = '🔄 Refresh Lengkap';
-}else{
-$('#refreshStatus').textContent = 'Idle';
-$('#btnRefresh').disabled = false;
-$('#btnRefreshFull').disabled = false;
-}
-});
-}
 
 // ── Init ──
 loadData();
