@@ -184,7 +184,12 @@ function esc(s){const d=document.createElement('div');d.textContent=s||'';return
 
 function exportExcel(){
 if(!allData.length){alert('Tidak ada data untuk di-export. Jalankan filter dulu.');return;}
-const rows=allData.map(r=>({
+const rows=[];
+allData.forEach(r=>{
+const jurusanList=r.jurusan?r.jurusan.split(' | ').map(j=>j.trim()).filter(Boolean):[];
+if(jurusanList.length){
+jurusanList.forEach(j=>{
+rows.push({
 'NPSN':r.npsn||'',
 'Nama Sekolah':r.nama||'',
 'Kabupaten':r.kab_kota||'',
@@ -192,9 +197,24 @@ const rows=allData.map(r=>({
 'Akreditasi':r.akreditasi||'',
 'Siswa':Number(r.jml_siswa||0),
 'Rombel':Number(r.total_rombel||0),
-'Jurusan':r.jurusan||r.jml_jurusan||'',
+'Jurusan':j,
 'Alamat':r.alamat_jalan||''
-}));
+});
+});
+}else{
+rows.push({
+'NPSN':r.npsn||'',
+'Nama Sekolah':r.nama||'',
+'Kabupaten':r.kab_kota||'',
+'Status':r.status||'',
+'Akreditasi':r.akreditasi||'',
+'Siswa':Number(r.jml_siswa||0),
+'Rombel':Number(r.total_rombel||0),
+'Jurusan':r.jml_jurusan||'-',
+'Alamat':r.alamat_jalan||''
+});
+}
+});
 const ws=XLSX.utils.json_to_sheet(rows);
 const wb=XLSX.utils.book_new();
 XLSX.utils.book_append_sheet(wb,ws,'Data SMK Sulbar');
