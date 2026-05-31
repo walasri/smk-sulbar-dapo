@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data SMK Sulawesi Barat</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f5f7fa;color:#333}
+.header{background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;padding:24px;text-align:center}
+.header h1{font-size:24px;margin-bottom:4px}
+.header p{opacity:.85;font-size:14px}
+.stats{display:flex;gap:12px;padding:16px;max-width:900px;margin:0 auto;flex-wrap:wrap}
+.stat-card{flex:1;min-width:140px;background:#fff;border-radius:10px;padding:16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.stat-card .num{font-size:28px;font-weight:700;color:#1a73e8}
+.stat-card .lbl{font-size:12px;color:#666;margin-top:4px}
+.controls{max-width:900px;margin:0 auto;padding:0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.controls select,.controls input{padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px}
+.controls input{flex:1;min-width:180px}
+.controls select{min-width:140px}
+.btn{padding:8px 16px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px}
+.btn:hover{background:#1557b0}
+.table-wrap{max-width:900px;margin:12px auto;padding:0 16px}
+table{width:100%;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);border-collapse:collapse}
+th{background:#f0f4f8;padding:10px 12px;text-align:left;font-size:13px;color:#555;position:sticky;top:0}
+td{padding:10px 12px;border-top:1px solid #f0f0f0;font-size:13px;cursor:pointer}
+tr:hover{background:#e8f0fe}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-a{background:#e8f5e9;color:#2e7d32}.badge-b{background:#e3f2fd;color:#1565c0}
+.badge-c{background:#fff3e0;color:#e65100}.badge-d{background:#fce4ec;color:#c62828}
+.badge-n{background:#eee;color:#666}
+.count{padding:8px 16px;max-width:900px;margin:0 auto;font-size:13px;color:#888}
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:100;justify-content:center;align-items:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:560px;width:92%;max-height:80vh;overflow-y:auto;padding:24px;position:relative}
+.modal h2{font-size:18px;margin-bottom:4px}
+.modal .close{position:absolute;top:12px;right:16px;font-size:24px;cursor:pointer;color:#888;background:none;border:none}
+.modal .info{font-size:13px;color:#555;margin-bottom:16px;line-height:1.7}
+.modal .info b{color:#333}
+.modal h3{font-size:15px;margin:12px 0 6px;color:#1a73e8}
+.modal ul{margin-left:18px;font-size:13px;line-height:1.8}
+.modal table{font-size:12px}
+.modal td,.modal th{padding:6px 8px}
+.empty{text-align:center;padding:40px;color:#aaa}
+@media(max-width:600px){.stats{flex-direction:column}.controls{flex-direction:column}table{font-size:12px}th,td{padding:6px 8px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+<h1>📊 Data SMK Sulawesi Barat</h1>
+<p>Sumber: DAPO Kemendikdasmen &bull; 125 SMK &bull; 6 Kabupaten</p>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="controls">
+<select id="fKab"><option value="">Semua Kabupaten</option></select>
+<select id="fStatus">
+<option value="">Semua Status</option>
+<option value="Negeri">Negeri</option>
+<option value="Swasta">Swasta</option>
+</select>
+<select id="fAkreditasi">
+<option value="">Semua Akreditasi</option>
+<option value="A">A</option><option value="B">B</option>
+<option value="C">C</option><option value="D">D</option>
+</select>
+<input type="text" id="fQ" placeholder="🔍 Cari nama sekolah...">
+<button class="btn" onclick="loadData()">Filter</button>
+</div>
+
+<div class="count" id="count"></div>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>No</th><th>Nama Sekolah</th><th>Kabupaten</th>
+<th>Status</th><th>Akreditasi</th><th>Siswa</th><th>Jurusan</th>
+</tr></thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+<div class="modal">
+<button class="close" onclick="closeModal()">&times;</button>
+<div id="modalContent"></div>
+</div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let allData = [];
+
+fetch('/api/meta').then(r=>r.json()).then(m=>{
+const sel = $('#fKab');
+m.kabupaten_list.forEach(k=>{
+const o = document.createElement('option');
+o.value=k; o.textContent=k;
+sel.appendChild(o);
+});
+
+const totalSiswa = 0;
+$('#stats').innerHTML = `
+<div class="stat-card"><div class="num">${m.total_sekolah}</div><div class="lbl">Total SMK</div></div>
+<div class="stat-card"><div class="num">${m.kabupaten_list.length}</div><div class="lbl">Kabupaten</div></div>
+<div class="stat-card"><div class="num">${m.jurusan_list.length}</div><div class="lbl">Jurusan</div></div>
+`;
+});
+
+function loadData(){
+const kab=$('#fKab').value, st=$('#fStatus').value;
+const ak=$('#fAkreditasi').value, q=$('#fQ').value;
+let url=`/api/sekolah?`;
+if(kab)url+=`kab_kota=${encodeURIComponent(kab)}&`;
+if(st)url+=`status=${encodeURIComponent(st)}&`;
+if(ak)url+=`akreditasi=${encodeURIComponent(ak)}&`;
+if(q)url+=`q=${encodeURIComponent(q)}&`;
+fetch(url).then(r=>r.json()).then(res=>{
+allData=res.data;
+$('#count').textContent=`${res.count} sekolah ditemukan`;
+renderTable(res.data);
+});
+}
+
+function renderTable(data){
+const tb=$('#tbody');
+if(!data.length){tb.innerHTML='<tr><td colspan="7" class="empty">Tidak ada data</td></tr>';return;}
+tb.innerHTML=data.map((r,i)=>{
+const bc={A:'badge-a',B:'badge-b',C:'badge-c',D:'badge-d'}[r.akreditasi]||'badge-n';
+return `<tr onclick="showDetail('${r.npsn}')">
+<td>${i+1}</td>
+<td><b>${esc(r.nama)}</b></td>
+<td>${esc(r.kab_kota)}</td>
+<td>${esc(r.status)}</td>
+<td><span class="badge ${bc}">${esc(r.akreditasi||'-')}</span></td>
+<td>${Number(r.jml_siswa||0).toLocaleString()}</td>
+<td>${r.jml_jurusan||'-'}</td>
+</tr>`;
+}).join('');
+}
+
+function showDetail(npsn){
+fetch(`/api/detail?npsn=${npsn}`).then(r=>r.json()).then(d=>{
+const s=d.sekolah||{};
+let h=`<h2>${esc(s.nama)}</h2>`;
+h+=`<div class="info">`;
+h+=`<b>NPSN:</b> ${esc(s.npsn)}<br>`;
+h+=`<b>Alamat:</b> ${esc(s.alamat_jalan||'-')}<br>`;
+h+=`<b>Kabupaten:</b> ${esc(s.kab_kota)}<br>`;
+h+=`<b>Status:</b> ${esc(s.status)} &bull; <b>Akreditasi:</b> ${esc(s.akreditasi||'-')}<br>`;
+h+=`<b>Siswa:</b> ${Number(s.jml_siswa||0).toLocaleString()} &bull; `;
+h+=`<b>Rombel:</b> ${s.total_rombel||'-'} &bull; `;
+h+=`<b>Jurusan:</b> ${s.jml_jurusan||'-'}`;
+if(s.lintang&&s.bujur) h+=`<br><b>Lokasi:</b> ${s.lintang}, ${s.bujur}`;
+h+=`</div>`;
+
+if(d.jurusan&&d.jurusan.length){
+h+=`<h3>🎓 Jurusan (${d.jurusan.length})</h3><ul>`;
+d.jurusan.forEach(j=>{h+=`<li>${esc(j)}</li>`});
+h+=`</ul>`;
+}
+
+if(d.mou&&d.mou.length){
+h+=`<h3>🤝 MOU / DUDI (${d.mou.length})</h3>`;
+h+=`<table><tr><th>Nama Mitra</th><th>Bentuk Kerjasama</th><th>Bidang</th></tr>`;
+d.mou.forEach(m=>{
+h+=`<tr><td>${esc(m.nama_mitra)}</td><td>${esc(m.bentuk_kerjasama)}</td><td>${esc(m.bidang_usaha)}</td></tr>`;
+});
+h+=`</table>`;
+}
+
+$('#modalContent').innerHTML=h;
+$('#modal').classList.add('show');
+});
+}
+
+function closeModal(){$('#modal').classList.remove('show');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+loadData();
+</script>
+</body>
+</html>
