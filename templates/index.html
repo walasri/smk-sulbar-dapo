@@ -42,6 +42,7 @@ tr:hover{background:#e8f0fe}
 .modal table{font-size:12px}
 .modal td,.modal th{padding:6px 8px}
 .empty{text-align:center;padding:40px;color:#aaa}
+.jurusan-cell{font-size:12px;color:#444;max-width:220px;line-height:1.4}
 @media(max-width:600px){.stats{flex-direction:column}.controls{flex-direction:column}table{font-size:12px}th,td{padding:6px 8px}}
 </style>
 </head>
@@ -135,7 +136,7 @@ return `<tr onclick="showDetail('${r.npsn}')">
 <td>${esc(r.status)}</td>
 <td><span class="badge ${bc}">${esc(r.akreditasi||'-')}</span></td>
 <td>${Number(r.jml_siswa||0).toLocaleString()}</td>
-<td>${r.jml_jurusan||'-'}</td>
+<td class="jurusan-cell">${r.jurusan ? esc(r.jurusan.split(' | ').slice(0,3).join(', ')) + (r.jurusan.split(' | ').length > 3 ? ` <span style="color:#999">+${r.jurusan.split(' | ').length - 3}</span>` : '') : (r.jml_jurusan||'-')}</td>
 </tr>`;
 }).join('');
 }
