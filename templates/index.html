@@ -10,17 +10,21 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f7fa;color:#33
 .header{background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;padding:24px;text-align:center}
 .header h1{font-size:24px;margin-bottom:4px}
 .header p{opacity:.85;font-size:14px}
-.stats{display:flex;gap:12px;padding:16px;max-width:900px;margin:0 auto;flex-wrap:wrap}
+.stats{display:flex;gap:12px;padding:16px;max-width:960px;margin:0 auto;flex-wrap:wrap}
 .stat-card{flex:1;min-width:140px;background:#fff;border-radius:10px;padding:16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .stat-card .num{font-size:28px;font-weight:700;color:#1a73e8}
 .stat-card .lbl{font-size:12px;color:#666;margin-top:4px}
-.controls{max-width:900px;margin:0 auto;padding:0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.controls{max-width:960px;margin:0 auto;padding:0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .controls select,.controls input{padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px}
 .controls input{flex:1;min-width:180px}
 .controls select{min-width:140px}
-.btn{padding:8px 16px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px}
+.btn{padding:8px 16px;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;white-space:nowrap}
 .btn:hover{background:#1557b0}
-.table-wrap{max-width:900px;margin:12px auto;padding:0 16px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-green{background:#2e7d32}.btn-green:hover{background:#1b5e20}
+.btn-orange{background:#e65100}.btn-orange:hover{background:#bf360c}
+.btn-sm{padding:6px 12px;font-size:13px}
+.table-wrap{max-width:960px;margin:12px auto;padding:0 16px}
 table{width:100%;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);border-collapse:collapse}
 th{background:#f0f4f8;padding:10px 12px;text-align:left;font-size:13px;color:#555;position:sticky;top:0}
 td{padding:10px 12px;border-top:1px solid #f0f0f0;font-size:13px;cursor:pointer}
@@ -29,7 +33,8 @@ tr:hover{background:#e8f0fe}
 .badge-a{background:#e8f5e9;color:#2e7d32}.badge-b{background:#e3f2fd;color:#1565c0}
 .badge-c{background:#fff3e0;color:#e65100}.badge-d{background:#fce4ec;color:#c62828}
 .badge-n{background:#eee;color:#666}
-.count{padding:8px 16px;max-width:900px;margin:0 auto;font-size:13px;color:#888}
+.count{padding:8px 16px;max-width:960px;margin:0 auto;font-size:13px;color:#888}
+.jurusan-cell{font-size:12px;color:#444;max-width:220px;line-height:1.4}
 .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:100;justify-content:center;align-items:center}
 .modal-overlay.show{display:flex}
 .modal{background:#fff;border-radius:12px;max-width:560px;width:92%;max-height:80vh;overflow-y:auto;padding:24px;position:relative}
@@ -42,7 +47,10 @@ tr:hover{background:#e8f0fe}
 .modal table{font-size:12px}
 .modal td,.modal th{padding:6px 8px}
 .empty{text-align:center;padding:40px;color:#aaa}
-.jurusan-cell{font-size:12px;color:#444;max-width:220px;line-height:1.4}
+.refresh-bar{max-width:960px;margin:8px auto;padding:0 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.refresh-status{font-size:13px;color:#555;flex:1;min-width:200px}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ccc;border-top-color:#1a73e8;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:600px){.stats{flex-direction:column}.controls{flex-direction:column}table{font-size:12px}th,td{padding:6px 8px}}
 </style>
 </head>
@@ -69,7 +77,13 @@ tr:hover{background:#e8f0fe}
 </select>
 <input type="text" id="fQ" placeholder="🔍 Cari nama sekolah...">
 <button class="btn" onclick="loadData()">Filter</button>
-<button class="btn" style="background:#2e7d32" onclick="exportExcel()">📥 Export Excel</button>
+<button class="btn btn-green" onclick="exportExcel()">📥 Export Excel</button>
+</div>
+
+<div class="refresh-bar">
+<button class="btn btn-sm btn-orange" id="btnRefresh" onclick="startRefresh('ringan')">🔄 Refresh Data</button>
+<button class="btn btn-sm btn-orange" id="btnRefreshFull" onclick="startRefresh('lengkap')">🔄 Refresh Lengkap (+Jurusan+MOU)</button>
+<span class="refresh-status" id="refreshStatus"></span>
 </div>
 
 <div class="count" id="count"></div>
@@ -94,7 +108,9 @@ tr:hover{background:#e8f0fe}
 <script>
 const $ = s => document.querySelector(s);
 let allData = [];
+let refreshTimer = null;
 
+// ── Load meta ──
 fetch('/api/meta').then(r=>r.json()).then(m=>{
 const sel = $('#fKab');
 m.kabupaten_list.forEach(k=>{
@@ -102,19 +118,19 @@ const o = document.createElement('option');
 o.value=k; o.textContent=k;
 sel.appendChild(o);
 });
-
-const totalSiswa = 0;
 $('#stats').innerHTML = `
 <div class="stat-card"><div class="num">${m.total_sekolah}</div><div class="lbl">Total SMK</div></div>
 <div class="stat-card"><div class="num">${m.kabupaten_list.length}</div><div class="lbl">Kabupaten</div></div>
 <div class="stat-card"><div class="num">${m.jurusan_list.length}</div><div class="lbl">Jurusan</div></div>
 `;
+if(m.last_refresh) $('#refreshStatus').textContent = 'Terakhir: '+m.last_refresh;
 });
 
+// ── Load data ──
 function loadData(){
 const kab=$('#fKab').value, st=$('#fStatus').value;
 const ak=$('#fAkreditasi').value, q=$('#fQ').value;
-let url=`/api/sekolah?`;
+let url='/api/sekolah?';
 if(kab)url+=`kab_kota=${encodeURIComponent(kab)}&`;
 if(st)url+=`status=${encodeURIComponent(st)}&`;
 if(ak)url+=`akreditasi=${encodeURIComponent(ak)}&`;
@@ -143,6 +159,7 @@ return `<tr onclick="showDetail('${r.npsn}')">
 }).join('');
 }
 
+// ── Detail modal ──
 function showDetail(npsn){
 fetch(`/api/detail?npsn=${npsn}`).then(r=>r.json()).then(d=>{
 const s=d.sekolah||{};
@@ -157,13 +174,11 @@ h+=`<b>Rombel:</b> ${s.total_rombel||'-'} &bull; `;
 h+=`<b>Jurusan:</b> ${s.jml_jurusan||'-'}`;
 if(s.lintang&&s.bujur) h+=`<br><b>Lokasi:</b> ${s.lintang}, ${s.bujur}`;
 h+=`</div>`;
-
 if(d.jurusan&&d.jurusan.length){
 h+=`<h3>🎓 Jurusan (${d.jurusan.length})</h3><ul>`;
 d.jurusan.forEach(j=>{h+=`<li>${esc(j)}</li>`});
 h+=`</ul>`;
 }
-
 if(d.mou&&d.mou.length){
 h+=`<h3>🤝 MOU / DUDI (${d.mou.length})</h3>`;
 h+=`<table><tr><th>Nama Mitra</th><th>Bentuk Kerjasama</th><th>Bidang</th></tr>`;
@@ -172,16 +187,15 @@ h+=`<tr><td>${esc(m.nama_mitra)}</td><td>${esc(m.bentuk_kerjasama)}</td><td>${es
 });
 h+=`</table>`;
 }
-
 $('#modalContent').innerHTML=h;
 $('#modal').classList.add('show');
 });
 }
-
 function closeModal(){$('#modal').classList.remove('show');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
 
+// ── Export Excel ──
 function exportExcel(){
 if(!allData.length){alert('Tidak ada data untuk di-export. Jalankan filter dulu.');return;}
 const rows=[];
@@ -189,30 +203,10 @@ allData.forEach(r=>{
 const jurusanList=r.jurusan?r.jurusan.split(' | ').map(j=>j.trim()).filter(Boolean):[];
 if(jurusanList.length){
 jurusanList.forEach(j=>{
-rows.push({
-'NPSN':r.npsn||'',
-'Nama Sekolah':r.nama||'',
-'Kabupaten':r.kab_kota||'',
-'Status':r.status||'',
-'Akreditasi':r.akreditasi||'',
-'Siswa':Number(r.jml_siswa||0),
-'Rombel':Number(r.total_rombel||0),
-'Jurusan':j,
-'Alamat':r.alamat_jalan||''
-});
+rows.push({'NPSN':r.npsn||'','Nama Sekolah':r.nama||'','Kabupaten':r.kab_kota||'','Status':r.status||'','Akreditasi':r.akreditasi||'','Siswa':Number(r.jml_siswa||0),'Rombel':Number(r.total_rombel||0),'Jurusan':j,'Alamat':r.alamat_jalan||''});
 });
 }else{
-rows.push({
-'NPSN':r.npsn||'',
-'Nama Sekolah':r.nama||'',
-'Kabupaten':r.kab_kota||'',
-'Status':r.status||'',
-'Akreditasi':r.akreditasi||'',
-'Siswa':Number(r.jml_siswa||0),
-'Rombel':Number(r.total_rombel||0),
-'Jurusan':r.jml_jurusan||'-',
-'Alamat':r.alamat_jalan||''
-});
+rows.push({'NPSN':r.npsn||'','Nama Sekolah':r.nama||'','Kabupaten':r.kab_kota||'','Status':r.status||'','Akreditasi':r.akreditasi||'','Siswa':Number(r.jml_siswa||0),'Rombel':Number(r.total_rombel||0),'Jurusan':r.jml_jurusan||'-','Alamat':r.alamat_jalan||''});
 }
 });
 const ws=XLSX.utils.json_to_sheet(rows);
@@ -223,6 +217,56 @@ const fname='SMK_Sulbar_'+kab.replace(/[^a-zA-Z0-9]/g,'_')+'.xlsx';
 XLSX.writeFile(wb,fname);
 }
 
+// ── Refresh Data ──
+function startRefresh(mode){
+const label = mode==='lengkap' ? 'Refresh Lengkap' : 'Refresh';
+if(!confirm(`Jalankan ${label}? Proses ini butuh waktu beberapa menit.`)) return;
+
+const btn = mode==='lengkap' ? $('#btnRefreshFull') : $('#btnRefresh');
+btn.disabled = true;
+btn.textContent = '⏳ Scraping...';
+$('#refreshStatus').innerHTML = '<span class="spinner"></span> Memulai scraping...';
+
+fetch(`/api/refresh?mode=${mode}`, {method:'POST'})
+.then(r=>r.json())
+.then(res=>{
+if(res.ok){
+pollRefresh();
+}else{
+$('#refreshStatus').textContent = '❌ '+res.error;
+btn.disabled = false;
+btn.textContent = mode==='lengkap' ? '🔄 Refresh Lengkap' : '🔄 Refresh Data';
+}
+});
+}
+
+function pollRefresh(){
+if(refreshTimer) clearTimeout(refreshTimer);
+fetch('/api/refresh/status').then(r=>r.json()).then(st=>{
+if(st.running){
+$('#refreshStatus').innerHTML = `<span class="spinner"></span> [${st.mode}] ${esc(st.progress)}`;
+refreshTimer = setTimeout(pollRefresh, 2000);
+}else if(st.done){
+if(st.success){
+$('#refreshStatus').textContent = '✅ Selesai! Memuat ulang data...';
+loadData();
+setTimeout(()=>{ $('#refreshStatus').textContent = '✅ Data diperbarui ('+st.finished_at+')'; }, 1000);
+}else{
+$('#refreshStatus').textContent = '❌ Gagal: '+st.error;
+}
+$('#btnRefresh').disabled = false;
+$('#btnRefresh').textContent = '🔄 Refresh Data';
+$('#btnRefreshFull').disabled = false;
+$('#btnRefreshFull').textContent = '🔄 Refresh Lengkap';
+}else{
+$('#refreshStatus').textContent = 'Idle';
+$('#btnRefresh').disabled = false;
+$('#btnRefreshFull').disabled = false;
+}
+});
+}
+
+// ── Init ──
 loadData();
 </script>
 </body>
