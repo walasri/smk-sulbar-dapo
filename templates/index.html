@@ -69,6 +69,7 @@ tr:hover{background:#e8f0fe}
 </select>
 <input type="text" id="fQ" placeholder="🔍 Cari nama sekolah...">
 <button class="btn" onclick="loadData()">Filter</button>
+<button class="btn" style="background:#2e7d32" onclick="exportExcel()">📥 Export Excel</button>
 </div>
 
 <div class="count" id="count"></div>
@@ -89,6 +90,7 @@ tr:hover{background:#e8f0fe}
 </div>
 </div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 let allData = [];
@@ -179,6 +181,27 @@ $('#modal').classList.add('show');
 function closeModal(){$('#modal').classList.remove('show');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+function exportExcel(){
+if(!allData.length){alert('Tidak ada data untuk di-export. Jalankan filter dulu.');return;}
+const rows=allData.map(r=>({
+'NPSN':r.npsn||'',
+'Nama Sekolah':r.nama||'',
+'Kabupaten':r.kab_kota||'',
+'Status':r.status||'',
+'Akreditasi':r.akreditasi||'',
+'Siswa':Number(r.jml_siswa||0),
+'Rombel':Number(r.total_rombel||0),
+'Jurusan':r.jurusan||r.jml_jurusan||'',
+'Alamat':r.alamat_jalan||''
+}));
+const ws=XLSX.utils.json_to_sheet(rows);
+const wb=XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb,ws,'Data SMK Sulbar');
+const kab=$('#fKab').value||'Semua';
+const fname='SMK_Sulbar_'+kab.replace(/[^a-zA-Z0-9]/g,'_')+'.xlsx';
+XLSX.writeFile(wb,fname);
+}
 
 loadData();
 </script>
